@@ -1,29 +1,33 @@
-# School
-# School Management API
+# 🏫 School Management API
 
-## 📌 Overview
+## 🚀 Overview
 
-This project is a Node.js + MySQL API to manage school data. It allows adding schools and retrieving them sorted by proximity using geographical distance.
+This project is a Node.js + Express API that allows users to:
 
-## 🚀 Features
+* Add schools
+* Fetch schools sorted by proximity to a user location
 
-* Add new school
-* Retrieve schools sorted by distance
-* Distance calculated using Haversine formula
+It also includes a frontend map interface using Leaflet.
 
-## 🛠 Tech Stack
+---
+
+## 🛠️ Tech Stack
 
 * Node.js
 * Express.js
-* MySQL
+* MySQL (Railway)
+* Leaflet (Map UI)
+* Render (Deployment)
+
+---
 
 ## 📡 API Endpoints
 
-### ➤ Add School
+### ➕ Add School
 
-POST /addSchool
+POST /api/addSchool
 
-Request:
+Payload:
 {
 "name": "ABC School",
 "address": "Pune",
@@ -31,41 +35,55 @@ Request:
 "longitude": 73.8567
 }
 
-Response:
-{
-"message": "School added successfully",
-"id": 1
-}
+---
+
+### 📍 List Schools
+
+GET /api/listSchools?latitude=18.52&longitude=73.85
+
+Returns schools sorted by distance.
 
 ---
 
-### ➤ List Schools
+## 🌐 Live Demo
 
-GET /listSchools?latitude=18.52&longitude=73.85
+Backend:
+https://school-i03o.onrender.com
 
-Response:
-[
-{
-"id": 1,
-"name": "ABC School",
-"distance": 0.5
-}
-]
+Frontend:
+https://school-i03o.onrender.com
+
+---
+
+## 🗄️ Database Schema
+
+```sql
+CREATE TABLE schools (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255),
+    address VARCHAR(255),
+    latitude FLOAT,
+    longitude FLOAT
+);
+```
+
+---
 
 ## ⚙️ Setup Instructions
 
-1. Clone repo
-2. Install dependencies:
-   npm install
-3. Configure database in config/db.js
-4. Run server:
-   npm run dev
+```bash
+git clone <repo-link>
+cd school-api
+npm install
+npm start
+```
 
-## 📬 Postman Collection
+---
 
+## ✨ Features
 
-
-## 🌐 Deployment
-
-(Add your live API link here if deployed)
-
+* CRUD operations for schools
+* Distance-based sorting
+* Map visualization
+* Radius filtering
+* Search functionality
