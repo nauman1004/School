@@ -1,16 +1,24 @@
-// app.js
 const express = require("express");
-const bodyParser = require("body-parser");
 const cors = require("cors");
+const path = require("path");
 
 const schoolRoutes = require("./routes/schoolRoutes");
 
 const app = express();
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-app.use("/", schoolRoutes);
+// ✅ Serve static FIRST
+app.use(express.static(path.join(__dirname, "public")));
+
+// ✅ THEN routes
+app.use("/api", schoolRoutes);
+
+// ✅ Explicit root route
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 const PORT = 5000;
 

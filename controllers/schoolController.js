@@ -6,7 +6,6 @@ const getDistance = require("../utils/distance");
 exports.addSchool = (req, res) => {
     const { name, address, latitude, longitude } = req.body;
 
-    // Validation
     if (!name || !address || latitude == null || longitude == null) {
         return res.status(400).json({ message: "All fields are required" });
     }
@@ -15,13 +14,10 @@ exports.addSchool = (req, res) => {
         return res.status(400).json({ message: "Invalid coordinates" });
     }
 
-    const query =
-        "INSERT INTO schools (name, address, latitude, longitude) VALUES (?, ?, ?, ?)";
+    const query = "INSERT INTO schools (name, address, latitude, longitude) VALUES (?, ?, ?, ?)";
 
     db.query(query, [name, address, latitude, longitude], (err, result) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
+        if (err) return res.status(500).json({ error: err.message });
 
         res.status(201).json({
             message: "School added successfully",
@@ -30,7 +26,7 @@ exports.addSchool = (req, res) => {
     });
 };
 
-// ➤ List Schools (sorted by proximity)
+// ➤ List Schools
 exports.listSchools = (req, res) => {
     const { latitude, longitude } = req.query;
 
@@ -56,4 +52,35 @@ exports.listSchools = (req, res) => {
 
         res.json(sorted);
     });
+};
+
+// ➤ Delete School ✅ FIXED
+exports.deleteSchool = (req, res) => {
+    const { id } = req.params;
+
+    db.query("DELETE FROM schools WHERE id = ?", [id], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        res.json({ message: "School deleted successfully" });
+    });
+};
+
+// ➤ Update School (ADD THIS)
+exports.updateSchool = (req, res) => {
+    const { id } = req.params;
+    const { name, address, latitude, longitude } = req.body;
+
+    if (!name || !address || latitude == null || longitude == null) {
+        return res.status(400).json({ message: "All fields are required" });
+    }
+
+    db.query(
+        "UPDATE schools SET name=?, address=?, latitude=?, longitude=? WHERE id=?",
+        [name, address, latitude, longitude, id],
+        (err, result) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            res.json({ message: "School updated successfully" });
+        }
+    );
 };

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <title>School Locator</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    ```
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+        }
+
+        #sidebar {
+            width: 320px;
+            height: 100vh;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 16px;
+            border-right: 1px solid #ddd;
+        }
+
+        #map {
+            flex: 1;
+            height: 100vh;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .school-item {
+            padding: 12px;
+            margin-bottom: 12px;
+            background: white;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        }
+
+        .school-item:hover {
+            background: #e9ecef;
+        }
+
+        .nearest {
+            border-left: 5px solid green;
+        }
+
+        input,
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 6px;
+            margin-bottom: 6px;
+            border-radius: 6px;
+            border: none;
+        }
+
+        input {
+            border: 1px solid #ccc;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .save {
+            background: #007bff;
+            color: white;
+        }
+
+        .location {
+            background: #6c757d;
+            color: white;
+        }
+
+        .delete {
+            background: #dc3545;
+            color: white;
+        }
+
+        .edit {
+            background: #28a745;
+            color: white;
+        }
+
+        h3 {
+            margin-top: 20px;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
+    </style>
+    ```
+
+</head>
+
+<body>
+
+    <div id="sidebar">
+
+        ```
+        <!-- 🔹 School List -->
+        <div class="section">
+            <h2>Nearby Schools</h2>
+            <div id="schoolList"></div>
+        </div>
+
+        <!-- 🔹 Form -->
+        <div class="section">
+            <h3>Add / Edit School</h3>
+
+            <input id="name" placeholder="School Name" />
+            <input id="address" placeholder="Address" />
+            <input id="latitude" placeholder="Latitude" />
+            <input id="longitude" placeholder="Longitude" />
+
+            <button class="location" onclick="useMyLocation()">📍 Use My Location</button>
+            <button class="save" onclick="addSchool()">💾 Save</button>
+        </div>
+        ```
+
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <script>
+        const map = L.map('map').setView([18.52, 73.85], 12);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        const schoolIcon = L.icon({
+            iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+            iconSize: [32, 32]
+        });
+
+        let userLat, userLon;
+        let markers = [];
+        let editingId = null;
+
+        // 🔹 Load schools
+        async function loadSchools() {
+            const res = await fetch(
+                `http://localhost:5000/api/listSchools?latitude=${userLat}&longitude=${userLon}`
+            );
+
+            const schools = await res.json();
+
+            const listContainer = document.getElementById("schoolList");
+            listContainer.innerHTML = "";
+
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+
+            schools.forEach((school, index) => {
+                const sLat = Number(school.latitude);
+                const sLon = Number(school.longitude);
+
+                const marker = L.marker([sLat, sLon], { icon: schoolIcon })
+                    .addTo(map)
+                    .bindPopup(`<b>${school.name}</b><br>${school.distance.toFixed(2)} km`);
+
+                markers.push(marker);
+
+                const div = document.createElement("div");
+                div.className = "school-item";
+                if (index === 0) div.classList.add("nearest");
+
+                div.innerHTML = `
+                <b>${school.name}</b><br>
+                ${school.address}<br>
+                ${school.distance.toFixed(2)} km<br><br>
+
+                <button class="edit" onclick="event.stopPropagation(); editSchool(${school.id}, '${school.name}', '${school.address}', ${school.latitude}, ${school.longitude})">✏ Edit</button>
+                <button class="delete" onclick="event.stopPropagation(); deleteSchool(${school.id})">🗑 Delete</button>
+            `;
+
+                div.onclick = () => {
+                    map.setView([sLat, sLon], 16);
+                    marker.openPopup();
+                };
+
+                listContainer.appendChild(div);
+            });
+        }
+
+        // 🔹 Use location
+        function useMyLocation() {
+            navigator.geolocation.getCurrentPosition(pos => {
+                document.getElementById("latitude").value = pos.coords.latitude;
+                document.getElementById("longitude").value = pos.coords.longitude;
+            });
+        }
+
+        // 🔹 Add / Update
+        async function addSchool() {
+            const name = document.getElementById("name").value;
+            const address = document.getElementById("address").value;
+            const latitude = document.getElementById("latitude").value;
+            const longitude = document.getElementById("longitude").value;
+
+            if (!name || !address || !latitude || !longitude) {
+                alert("Please fill all fields");
+                return;
+            }
+
+            if (editingId) {
+                await fetch(`http://localhost:5000/api/updateSchool/${editingId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, address, latitude, longitude })
+                });
+
+                alert("School updated!");
+                editingId = null;
+
+            } else {
+                await fetch("http://localhost:5000/api/addSchool", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, address, latitude, longitude })
+                });
+
+                alert("School added!");
+            }
+
+            // ✅ Clear inputs
+            document.getElementById("name").value = "";
+            document.getElementById("address").value = "";
+            document.getElementById("latitude").value = "";
+            document.getElementById("longitude").value = "";
+
+            loadSchools();
+        }
+
+        // 🔹 Edit
+        function editSchool(id, name, address, lat, lon) {
+            document.getElementById("name").value = name;
+            document.getElementById("address").value = address;
+            document.getElementById("latitude").value = lat;
+            document.getElementById("longitude").value = lon;
+
+            editingId = id;
+        }
+
+        // 🔹 Delete
+        async function deleteSchool(id) {
+            if (!confirm("Delete this school?")) return;
+
+            await fetch(`http://localhost:5000/api/deleteSchool/${id}`, {
+                method: "DELETE"
+            });
+
+            loadSchools();
+        }
+
+        // 🔹 Init
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            userLat = position.coords.latitude;
+            userLon = position.coords.longitude;
+
+            map.setView([userLat, userLon], 14);
+
+            L.marker([userLat, userLon])
+                .addTo(map)
+                .bindPopup("📍 You are here")
+                .openPopup();
+
+            loadSchools();
+        });
+    </script>
+
+</body>
+
+</html>
