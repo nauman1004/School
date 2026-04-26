@@ -1,12 +1,10 @@
 <!DOCTYPE html>
-
 <html>
 
 <head>
     <title>School Locator</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
-    ```
     <style>
         body {
             margin: 0;
@@ -39,6 +37,7 @@
             border-radius: 10px;
             cursor: pointer;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+            transition: 0.2s;
         }
 
         .school-item:hover {
@@ -46,7 +45,8 @@
         }
 
         .nearest {
-            border-left: 5px solid green;
+            border-left: 6px solid green;
+            background: #e6ffe6;
         }
 
         input,
@@ -87,28 +87,22 @@
             color: white;
         }
 
-        h3 {
-            margin-top: 20px;
-            border-top: 1px solid #ddd;
-            padding-top: 10px;
+        .loading {
+            text-align: center;
+            color: gray;
         }
     </style>
-    ```
-
 </head>
 
 <body>
 
     <div id="sidebar">
 
-        ```
-        <!-- 🔹 School List -->
         <div class="section">
             <h2>Nearby Schools</h2>
-            <div id="schoolList"></div>
+            <div id="schoolList" class="loading">Loading...</div>
         </div>
 
-        <!-- 🔹 Form -->
         <div class="section">
             <h3>Add / Edit School</h3>
 
@@ -120,7 +114,6 @@
             <button class="location" onclick="useMyLocation()">📍 Use My Location</button>
             <button class="save" onclick="addSchool()">💾 Save</button>
         </div>
-        ```
 
     </div>
 
@@ -129,14 +122,21 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
     <script>
+        const BASE_URL = "https://school-i03o.onrender.com";
+
         const map = L.map('map').setView([18.52, 73.85], 12);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        const schoolIcon = L.icon({
+        const normalIcon = L.icon({
             iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+            iconSize: [32, 32]
+        });
+
+        const nearestIcon = L.icon({
+            iconUrl: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
             iconSize: [32, 32]
         });
 
@@ -144,16 +144,22 @@
         let markers = [];
         let editingId = null;
 
-        // 🔹 Load schools
         async function loadSchools() {
+            const listContainer = document.getElementById("schoolList");
+            listContainer.innerHTML = "Loading...";
+
             const res = await fetch(
-                `http://localhost:5000/api/listSchools?latitude=${userLat}&longitude=${userLon}`
+                `${BASE_URL}/api/listSchools?latitude=${userLat}&longitude=${userLon}`
             );
 
             const schools = await res.json();
 
-            const listContainer = document.getElementById("schoolList");
             listContainer.innerHTML = "";
+
+            if (schools.length === 0) {
+                listContainer.innerHTML = "No schools found";
+                return;
+            }
 
             markers.forEach(m => map.removeLayer(m));
             markers = [];
@@ -162,9 +168,15 @@
                 const sLat = Number(school.latitude);
                 const sLon = Number(school.longitude);
 
-                const marker = L.marker([sLat, sLon], { icon: schoolIcon })
+                const icon = index === 0 ? nearestIcon : normalIcon;
+
+                const marker = L.marker([sLat, sLon], { icon })
                     .addTo(map)
-                    .bindPopup(`<b>${school.name}</b><br>${school.distance.toFixed(2)} km`);
+                    .bindPopup(`
+                        <b>${school.name}</b><br>
+                        📍 ${school.address}<br>
+                        📏 ${school.distance.toFixed(2)} km
+                    `);
 
                 markers.push(marker);
 
@@ -173,13 +185,13 @@
                 if (index === 0) div.classList.add("nearest");
 
                 div.innerHTML = `
-                <b>${school.name}</b><br>
-                ${school.address}<br>
-                ${school.distance.toFixed(2)} km<br><br>
+                    <b>${school.name}</b><br>
+                    ${school.address}<br>
+                    ${school.distance.toFixed(2)} km<br><br>
 
-                <button class="edit" onclick="event.stopPropagation(); editSchool(${school.id}, '${school.name}', '${school.address}', ${school.latitude}, ${school.longitude})">✏ Edit</button>
-                <button class="delete" onclick="event.stopPropagation(); deleteSchool(${school.id})">🗑 Delete</button>
-            `;
+                    <button class="edit" onclick="event.stopPropagation(); editSchool(${school.id}, '${school.name}', '${school.address}', ${school.latitude}, ${school.longitude})">✏ Edit</button>
+                    <button class="delete" onclick="event.stopPropagation(); deleteSchool(${school.id})">🗑 Delete</button>
+                `;
 
                 div.onclick = () => {
                     map.setView([sLat, sLon], 16);
@@ -190,7 +202,6 @@
             });
         }
 
-        // 🔹 Use location
         function useMyLocation() {
             navigator.geolocation.getCurrentPosition(pos => {
                 document.getElementById("latitude").value = pos.coords.latitude;
@@ -198,7 +209,6 @@
             });
         }
 
-        // 🔹 Add / Update
         async function addSchool() {
             const name = document.getElementById("name").value;
             const address = document.getElementById("address").value;
@@ -210,27 +220,14 @@
                 return;
             }
 
-            if (editingId) {
-                await fetch(`http://localhost:5000/api/updateSchool/${editingId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name, address, latitude, longitude })
-                });
+            await fetch(`${BASE_URL}/api/addSchool`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, address, latitude, longitude })
+            });
 
-                alert("School updated!");
-                editingId = null;
+            alert("School saved!");
 
-            } else {
-                await fetch("http://localhost:5000/api/addSchool", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name, address, latitude, longitude })
-                });
-
-                alert("School added!");
-            }
-
-            // ✅ Clear inputs
             document.getElementById("name").value = "";
             document.getElementById("address").value = "";
             document.getElementById("latitude").value = "";
@@ -239,7 +236,6 @@
             loadSchools();
         }
 
-        // 🔹 Edit
         function editSchool(id, name, address, lat, lon) {
             document.getElementById("name").value = name;
             document.getElementById("address").value = address;
@@ -249,19 +245,17 @@
             editingId = id;
         }
 
-        // 🔹 Delete
         async function deleteSchool(id) {
             if (!confirm("Delete this school?")) return;
 
-            await fetch(`http://localhost:5000/api/deleteSchool/${id}`, {
+            await fetch(`${BASE_URL}/api/deleteSchool/${id}`, {
                 method: "DELETE"
             });
 
             loadSchools();
         }
 
-        // 🔹 Init
-        navigator.geolocation.getCurrentPosition(async (position) => {
+        navigator.geolocation.getCurrentPosition((position) => {
             userLat = position.coords.latitude;
             userLon = position.coords.longitude;
 
