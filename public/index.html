@@ -1,10 +1,12 @@
 <!DOCTYPE html>
+
 <html>
 
 <head>
     <title>School Locator</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
+    ```
     <style>
         body {
             margin: 0;
@@ -27,34 +29,29 @@
         }
 
         .section {
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
 
         .school-item {
             padding: 12px;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             background: white;
             border-radius: 10px;
             cursor: pointer;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-            transition: 0.2s;
-        }
-
-        .school-item:hover {
-            background: #e9ecef;
         }
 
         .nearest {
-            border-left: 6px solid green;
+            border-left: 5px solid green;
             background: #e6ffe6;
         }
 
         input,
+        select,
         button {
             width: 100%;
-            padding: 10px;
+            padding: 8px;
             margin-top: 6px;
-            margin-bottom: 6px;
             border-radius: 6px;
             border: none;
         }
@@ -65,46 +62,57 @@
 
         button {
             cursor: pointer;
+            color: white;
         }
 
         .save {
             background: #007bff;
-            color: white;
         }
 
         .location {
             background: #6c757d;
-            color: white;
         }
 
         .delete {
             background: #dc3545;
-            color: white;
         }
 
         .edit {
             background: #28a745;
-            color: white;
-        }
-
-        .loading {
-            text-align: center;
-            color: gray;
         }
     </style>
+    ```
+
 </head>
 
 <body>
 
     <div id="sidebar">
 
+        ```
+        <!-- 🔎 FILTERS -->
         <div class="section">
-            <h2>Nearby Schools</h2>
-            <div id="schoolList" class="loading">Loading...</div>
+            <h3>Filters</h3>
+
+            <select id="radiusFilter" onchange="loadSchools()">
+                <option value="all">All Distances</option>
+                <option value="5">Within 5 km</option>
+                <option value="10">Within 10 km</option>
+                <option value="20">Within 20 km</option>
+            </select>
+
+            <input id="searchInput" placeholder="Search school..." oninput="loadSchools()" />
         </div>
 
+        <!-- 📍 LIST -->
         <div class="section">
-            <h3>Add / Edit School</h3>
+            <h2>Nearby Schools</h2>
+            <div id="schoolList">Loading...</div>
+        </div>
+
+        <!-- ➕ FORM -->
+        <div class="section">
+            <h3>Add School</h3>
 
             <input id="name" placeholder="School Name" />
             <input id="address" placeholder="Address" />
@@ -114,6 +122,7 @@
             <button class="location" onclick="useMyLocation()">📍 Use My Location</button>
             <button class="save" onclick="addSchool()">💾 Save</button>
         </div>
+        ```
 
     </div>
 
@@ -130,76 +139,84 @@
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        const normalIcon = L.icon({
+        const redIcon = L.icon({
             iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
             iconSize: [32, 32]
         });
 
-        const nearestIcon = L.icon({
+        const greenIcon = L.icon({
             iconUrl: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
             iconSize: [32, 32]
         });
 
         let userLat, userLon;
         let markers = [];
-        let editingId = null;
+        let radiusCircle;
 
         async function loadSchools() {
-            const listContainer = document.getElementById("schoolList");
-            listContainer.innerHTML = "Loading...";
 
-            const res = await fetch(
-                `${BASE_URL}/api/listSchools?latitude=${userLat}&longitude=${userLon}`
-            );
+            const list = document.getElementById("schoolList");
+            list.innerHTML = "Loading...";
 
+            const res = await fetch(`${BASE_URL}/api/listSchools?latitude=${userLat}&longitude=${userLon}`);
             const schools = await res.json();
 
-            listContainer.innerHTML = "";
+            const radius = document.getElementById("radiusFilter").value;
+            const search = document.getElementById("searchInput").value.toLowerCase();
 
-            if (schools.length === 0) {
-                listContainer.innerHTML = "No schools found";
+            const filtered = schools.filter(s => {
+                const r = radius === "all" || s.distance <= radius;
+                const m = s.name.toLowerCase().includes(search) || s.address.toLowerCase().includes(search);
+                return r && m;
+            });
+
+            list.innerHTML = "";
+
+            if (filtered.length === 0) {
+                list.innerHTML = "No schools found";
                 return;
             }
 
             markers.forEach(m => map.removeLayer(m));
             markers = [];
 
-            schools.forEach((school, index) => {
-                const sLat = Number(school.latitude);
-                const sLon = Number(school.longitude);
+            filtered.forEach((school, i) => {
+                const icon = i === 0 ? greenIcon : redIcon;
 
-                const icon = index === 0 ? nearestIcon : normalIcon;
-
-                const marker = L.marker([sLat, sLon], { icon })
+                const marker = L.marker([school.latitude, school.longitude], { icon })
                     .addTo(map)
-                    .bindPopup(`
-                        <b>${school.name}</b><br>
-                        📍 ${school.address}<br>
-                        📏 ${school.distance.toFixed(2)} km
-                    `);
+                    .bindPopup(`<b>${school.name}</b><br>${school.distance.toFixed(2)} km`);
 
                 markers.push(marker);
 
                 const div = document.createElement("div");
                 div.className = "school-item";
-                if (index === 0) div.classList.add("nearest");
+                if (i === 0) div.classList.add("nearest");
 
                 div.innerHTML = `
-                    <b>${school.name}</b><br>
-                    ${school.address}<br>
-                    ${school.distance.toFixed(2)} km<br><br>
-
-                    <button class="edit" onclick="event.stopPropagation(); editSchool(${school.id}, '${school.name}', '${school.address}', ${school.latitude}, ${school.longitude})">✏ Edit</button>
-                    <button class="delete" onclick="event.stopPropagation(); deleteSchool(${school.id})">🗑 Delete</button>
-                `;
+                <b>${school.name}</b><br>
+                ${school.address}<br>
+                ${school.distance.toFixed(2)} km
+            `;
 
                 div.onclick = () => {
-                    map.setView([sLat, sLon], 16);
+                    map.setView([school.latitude, school.longitude], 15);
                     marker.openPopup();
                 };
 
-                listContainer.appendChild(div);
+                list.appendChild(div);
             });
+
+            // 🔵 Draw radius circle
+            if (radiusCircle) map.removeLayer(radiusCircle);
+
+            if (radius !== "all") {
+                radiusCircle = L.circle([userLat, userLon], {
+                    radius: radius * 1000,
+                    color: 'blue',
+                    fillOpacity: 0.1
+                }).addTo(map);
+            }
         }
 
         function useMyLocation() {
@@ -216,7 +233,7 @@
             const longitude = document.getElementById("longitude").value;
 
             if (!name || !address || !latitude || !longitude) {
-                alert("Please fill all fields");
+                alert("Fill all fields");
                 return;
             }
 
@@ -226,7 +243,7 @@
                 body: JSON.stringify({ name, address, latitude, longitude })
             });
 
-            alert("School saved!");
+            alert("School added!");
 
             document.getElementById("name").value = "";
             document.getElementById("address").value = "";
@@ -236,28 +253,9 @@
             loadSchools();
         }
 
-        function editSchool(id, name, address, lat, lon) {
-            document.getElementById("name").value = name;
-            document.getElementById("address").value = address;
-            document.getElementById("latitude").value = lat;
-            document.getElementById("longitude").value = lon;
-
-            editingId = id;
-        }
-
-        async function deleteSchool(id) {
-            if (!confirm("Delete this school?")) return;
-
-            await fetch(`${BASE_URL}/api/deleteSchool/${id}`, {
-                method: "DELETE"
-            });
-
-            loadSchools();
-        }
-
-        navigator.geolocation.getCurrentPosition((position) => {
-            userLat = position.coords.latitude;
-            userLon = position.coords.longitude;
+        navigator.geolocation.getCurrentPosition(pos => {
+            userLat = pos.coords.latitude;
+            userLon = pos.coords.longitude;
 
             map.setView([userLat, userLon], 14);
 
